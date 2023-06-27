@@ -1,34 +1,38 @@
-name: Ubuntu Machine Setup
+name: Windows 11 RDP
 
-on:
-  push:
-    branches:
-      - main
-
+on: 
+  workflow_dispatch:
+  
 jobs:
   build:
-
-    runs-on: ubuntu-latest
-
+    runs-on: windows-latest
+    
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
+      - name: Checkout
+        uses: actions/checkout@v2
 
-    - name: Set up Ngrok
-      run: |
-        wget https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip
-        unzip ngrok-stable-linux-amd64.zip
-        chmod +x ngrok
-        ./ngrok authtoken <YOUR_NGROK_AUTH_TOKEN>
-        ./ngrok http 80 &
+      - name: Download Ngrok
+        run: |
+          Invoke-WebRequest -Uri https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-windows-amd64.zip -OutFile ngrok.zip
+          Expand-Archive ngrok.zip -DestinationPath $env:USERPROFILE\Downloads
+          rm ngrok.zip
+          
+      - name: Copy ngrok to $env:USERPROFILE
+        run: cp $env:USERPROFILE\Downloads\ngrok.exe $env:USERPROFILE
 
-    - name: Set up Ubuntu machine
-      run: |
-        sudo apt update
-        sudo apt install -y ubuntu-desktop
-        sudo ufw allow 22
-        sudo ufw enable
-        sudo apt install -y git
-        git clone <YOUR_GITHUB_REPOSITORY_URL>
-        # Set up your application
-        # Start your application
+      - name: Connect to your Ngrok account
+        run: .\ngrok.exe authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
+
+      - name: Enable RDP
+        run: |
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          Set-NetFirewallRule -Name "RemoteDesktop-UserMode-In-TCP" -Enabled True
+          Set-NetFirewallRule -Name "RemoteDesktop-UserMode-In-UDP" -Enabled True
+          Set-NetFirewallRule -Name "RemoteDesktop-Shadow-In-TCP" -Enabled True
+          Set-NetFirewallRule -Name "RemoteDesktop-Shadow-In-UDP" -Enabled True
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
+
+      - name: Create Tunnel
+        run: Start-Process Powershell -ArgumentList "-Command .\ngrok.exe tcp 3389 -region eu"
+
