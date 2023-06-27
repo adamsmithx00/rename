@@ -26,7 +26,7 @@ jobs:
     - name: Retrieve Ngrok Tunnel Information
       run: |
         Start-Sleep -s 10
-        $response = Invoke-RestMethod -Method Get -Uri http://localhost:4040/api/tunnels
+        $response = Invoke-RestMethod -Method Get -Uri http://localhost:8080/api/tunnels
         $rdpTunnel = $response.tunnels | Where-Object { $_.proto -eq 'tcp' }
         $rdpAddress = $rdpTunnel.public_url.Replace("tcp://", "")
         Write-Host "RDP Address: $rdpAddress"
