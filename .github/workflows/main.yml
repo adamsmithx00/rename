@@ -1,38 +1,39 @@
-name: Windows 11 RDP
+name: Ubuntu Server
 
 on: 
   workflow_dispatch:
-  
+
 jobs:
   build:
-    runs-on: windows-latest
-    
+    runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v2
+    - name: Installing SSH
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ssh
 
-      - name: Download Ngrok
-        run: |
-          Invoke-WebRequest -Uri https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-windows-amd64.zip -OutFile ngrok.zip
-          Expand-Archive ngrok.zip -DestinationPath $env:USERPROFILE\Downloads
-          rm ngrok.zip
-          
-      - name: Copy ngrok to $env:USERPROFILE
-        run: cp $env:USERPROFILE\Downloads\ngrok.exe $env:USERPROFILE
+    - name: Setting up SSH
+      run: |
+        echo "PermitRootLogin yes" | sudo tee -a /etc/ssh/sshd_config
+        sudo service ssh restart
 
-      - name: Connect to your Ngrok account
-        run: .\ngrok.exe authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
+    - name: Setting up ngrok
+      run: |
+        wget https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip
+        unzip ngrok-stable-linux-amd64.zip
+        chmod +x ./ngrok
 
-      - name: Enable RDP
-        run: |
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -value 0
-          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          Set-NetFirewallRule -Name "RemoteDesktop-UserMode-In-TCP" -Enabled True
-          Set-NetFirewallRule -Name "RemoteDesktop-UserMode-In-UDP" -Enabled True
-          Set-NetFirewallRule -Name "RemoteDesktop-Shadow-In-TCP" -Enabled True
-          Set-NetFirewallRule -Name "RemoteDesktop-Shadow-In-UDP" -Enabled True
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
+    - name: Connect to ngrok
+      env:
+        NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+      run: ./ngrok authtoken $NGROK_AUTH_TOKEN
 
-      - name: Create Tunnel
-        run: Start-Process Powershell -ArgumentList "-Command .\ngrok.exe tcp 3389 -region eu"
+    - name: Create ngrok tunnel
+      run: |
+        ./ngrok tcp 22 &
 
+    - name: Display ngrok public address
+      run: |
+        sleep 5
+        curl http://localhost:4040/api/tunnels
