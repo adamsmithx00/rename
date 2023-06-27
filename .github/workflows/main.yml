@@ -1,0 +1,37 @@
+name: Windows 11 RDP Setup
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v2
+
+    - name: Install Ngrok
+      run: |
+        Invoke-WebRequest -Uri "https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-windows-amd64.zip" -OutFile "ngrok.zip"
+        Expand-Archive -Path "ngrok.zip" -DestinationPath "$env:USERPROFILE\ngrok"
+
+    - name: Start Ngrok RDP Tunnel
+      run: |
+        Start-Process "$env:USERPROFILE\ngrok\ngrok.exe" "authtoken <YOUR_NGROK_AUTH_TOKEN>"
+        Start-Process "$env:USERPROFILE\ngrok\ngrok.exe" "tcp --region=us --remote-addr 3389"
+
+    - name: Retrieve Ngrok Tunnel Information
+      run: |
+        Start-Sleep -s 10
+        $response = Invoke-RestMethod -Method Get -Uri http://localhost:4040/api/tunnels
+        $rdpTunnel = $response.tunnels | Where-Object { $_.proto -eq 'tcp' }
+        $rdpAddress = $rdpTunnel.public_url.Replace("tcp://", "")
+        Write-Host "RDP Address: $rdpAddress"
+
+    - name: Save RDP Address to Artifacts
+      run: |
+        echo "::set-output name=rdp_address::$rdpAddress"
+        echo "::add-path::$rdpAddress" >> $env:GITHUB_PATH
